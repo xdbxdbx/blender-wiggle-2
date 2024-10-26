@@ -27,7 +27,7 @@ bl_info = {
     "version": (1, 0, 0),
     "blender": (3, 00, 0),
     "location": "3D Viewport > Animation Panel",
-    "description": "Simulate spring-like physics on Bone transforms - Forked and Modified",
+    "description": "Simulate spring-like physics on Bone transforms",
     "warning": "",
     "wiki_url": "https://github.com/Labhatorian/blender-wiggle-2",
     "category": "Animation",
