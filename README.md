@@ -56,6 +56,7 @@ For a detailed list of changes, refer to the notice in [`wiggle_2.py`](./wiggle_
 7. **Set Up Collision**
    - Select a collision object or collection to enable interactions, providing additional tuning options for collision behavior. \
    ![Configure Collision](./images/configure_collision.png?raw=true "Configure Collision")
+   - all bone collisions option
 
 8. **Utilize Global Utilities**
    - The global utilities section offers functions like resetting physics, selecting all wiggling bones, and copying settings between bones. 

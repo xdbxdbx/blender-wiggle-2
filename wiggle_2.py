@@ -112,7 +112,7 @@ def collider_poll(self, object):
 
 def wind_poll(self, object):
     return object.field and object.field.type =='WIND'
-
+        
 def collide(b,dg,head=False):
     dt = bpy.context.scene.wiggle.dt
     
@@ -287,6 +287,7 @@ def move(b,dg):
             collide(b,dg,True)
         update_matrix(b)
 
+       # if bpy.context.scene.wiggle_scene.enable_collision:
 def constrain(b,i,dg):
     dt = bpy.context.scene.wiggle.dt
     
@@ -438,7 +439,6 @@ def constrain(b,i,dg):
             collide(b,dg,True)
     update_matrix(b)
  
-        
 @persistent
 def wiggle_pre(scene):
     if (scene.wiggle.lastframe == scene.frame_current) and not scene.wiggle.reset: return
@@ -446,6 +446,7 @@ def wiggle_pre(scene):
     if not scene.wiggle_enable:
         reset_scene()
         return
+
     for wo in scene.wiggle.list:
         if wo.name not in scene.objects:
             build_list()
@@ -898,6 +899,7 @@ class WIGGLE_PT_Utilities(WigglePanel,bpy.types.Panel):
             col.operator('wiggle.copy')
             col.operator('wiggle.select')
         col.operator('wiggle.reset')
+        layout.prop(context.scene.wiggle, 'enable_collision')
         layout.prop(context.scene.wiggle, 'loop')
         layout.prop(context.scene.wiggle, 'iterations')
         
@@ -963,6 +965,11 @@ class WiggleScene(bpy.types.PropertyGroup):
     bake_nla: bpy.props.BoolProperty(name='Current Action to NLA', description='Move existing animation on the armature into an NLA strip', default = False) 
     is_rendering: bpy.props.BoolProperty(default=False)
     reset: bpy.props.BoolProperty(default=False)
+    enable_collision: bpy.props.BoolProperty(
+        name='Enable Collision',
+        description='Enable collision detection for wiggle bones in this scene',
+        default=False
+    )
 
 def register():
     
@@ -1289,6 +1296,15 @@ def register():
         soft_max = 1,
         override={'LIBRARY_OVERRIDABLE'},
         update=lambda s, c: update_prop(s, c, 'wiggle_sticky_head')
+    )
+
+    #Enable collision along the whole bone from head to tail
+    bpy.types.PoseBone.wiggle_enable_collision = bpy.props.BoolProperty(
+        name='Enable Collision',
+        description="Enable collision along the whole bone from head to tail",
+        default=False,
+        override={'LIBRARY_OVERRIDABLE'},
+        update=lambda s, c: update_prop(s, c, 'wiggle_enable_collision')
     )
     
     #internal variables
