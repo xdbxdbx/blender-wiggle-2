@@ -113,82 +113,73 @@ def collider_poll(self, object):
 def wind_poll(self, object):
     return object.field and object.field.type =='WIND'
         
-def collide(b,dg,head=False):
+def collide(b, dg, head=False):
     dt = bpy.context.scene.wiggle.dt
     
+    # Initialize head and tail-specific properties
     if head:
-        pos = b.wiggle.position_head
+        pos_head, pos_tail = b.wiggle.position_head, b.wiggle.position
         vel = b.wiggle.velocity_head
         cp = b.wiggle.collision_point_head
         co = b.wiggle.collision_ob_head
         cn = b.wiggle.collision_normal_head
-        
-        collider_type = b.wiggle_collider_type_head
-        wiggle_collider = b.wiggle_collider_head
-        wiggle_collection = b.wiggle_collider_collection_head
-        
         radius = b.wiggle_radius_head
-        sticky = b.wiggle_sticky_head
-        bounce = b.wiggle_bounce_head
-        friction = b.wiggle_friction_head
+        sticky, bounce, friction = b.wiggle_sticky_head, b.wiggle_bounce_head, b.wiggle_friction_head
     else:
-        pos = b.wiggle.position
+        pos_head, pos_tail = b.wiggle.position, b.wiggle.position_head
         vel = b.wiggle.velocity
         cp = b.wiggle.collision_point
         co = b.wiggle.collision_ob
         cn = b.wiggle.collision_normal
-        
-        collider_type = b.wiggle_collider_type
-        wiggle_collider = b.wiggle_collider
-        wiggle_collection = b.wiggle_collider_collection
-        
         radius = b.wiggle_radius
-        sticky = b.wiggle_sticky
-        bounce = b.wiggle_bounce
-        friction = b.wiggle_friction
-        
+        sticky, bounce, friction = b.wiggle_sticky, b.wiggle_bounce, b.wiggle_friction
+    
+    # Prepare colliders
     colliders = []
-    if collider_type == 'Object' and wiggle_collider:
-        if wiggle_collider.name in bpy.context.scene.objects:
-            colliders = [wiggle_collider]
-    if collider_type == 'Collection' and wiggle_collection:
-        if wiggle_collection in bpy.context.scene.collection.children_recursive:
-            colliders = [ob for ob in wiggle_collection.objects if ob.type == 'MESH']
+    if b.wiggle_collider_type == 'Object' and b.wiggle_collider:
+        if b.wiggle_collider.name in bpy.context.scene.objects:
+            colliders = [b.wiggle_collider]
+    elif b.wiggle_collider_type == 'Collection' and b.wiggle_collider_collection:
+        colliders = [ob for ob in b.wiggle_collider_collection.objects if ob.type == 'MESH']
+    
+    # Collision along the length of the bone
     col = False
     for collider in colliders:
         cmw = collider.matrix_world
-        p = collider.closest_point_on_mesh(cmw.inverted() @ pos, depsgraph=dg)
-        n = (cmw.to_quaternion().to_matrix().to_4x4() @ p[2]).normalized()
-        i = cmw @ p[1]
-        v = i-pos
         
-        if (n.dot(v.normalized()) > 0.01) or (v.length < radius) or (co and (v.length < (radius+sticky))):
-            if n.dot(v.normalized()) > 0: #vec is below
-                nv = v.normalized()
-            else: #normal is opposite dir to vec
-                nv = -v.normalized()
-            pos = i + nv*radius
-            
-            if co:
-                collision_point = co.matrix_world @ cp
-                pos = pos.lerp(collision_point, friction) # min(1,friction*60*dt))
-            col = True
-            co = collider
-            cp = relative_matrix(cmw, Matrix.Translation(pos)).translation
-            cn = nv
-    if not col:
-        co = None
-    
-    if head:
-        b.wiggle.position_head = pos
-        b.wiggle.collision_point_head = cp
-        b.wiggle.collision_ob_head = co  
-        b.wiggle.collision_normal_head = cn
+        # Check collision along the segment from pos_head to pos_tail
+        segment_points = [pos_head.lerp(pos_tail, t) for t in (0.0, 0.5, 1.0)]
+        for pos in segment_points:
+            p = collider.closest_point_on_mesh(cmw.inverted() @ pos, depsgraph=dg)
+            n = (cmw.to_quaternion().to_matrix().to_4x4() @ p[2]).normalized()
+            i = cmw @ p[1]
+            v = i - pos
+
+            # Check for collision based on radius and sticky threshold
+            if (n.dot(v.normalized()) > 0.01 or v.length < radius or (co and v.length < radius + sticky)):
+                # Determine collision point on the bone's segment
+                pos = i + n * radius if n.dot(v.normalized()) > 0 else i - n * radius
+                
+                if co:
+                    collision_point = co.matrix_world @ cp
+                    pos = pos.lerp(collision_point, friction)
+                
+                # Update collision state
+                col, co, cp, cn = True, collider, i, n
+
+    # Update the bone's collision properties based on collision status
+    if col:
+        if head:
+            b.wiggle.position_head, b.wiggle.collision_point_head = pos_head, cp
+            b.wiggle.collision_ob_head, b.wiggle.collision_normal_head = co, cn
+        else:
+            b.wiggle.position, b.wiggle.collision_point = pos, cp
+            b.wiggle.collision_ob, b.wiggle.collision_normal = co, cn
     else:
-        b.wiggle.position = pos
-        b.wiggle.collision_point = cp
-        b.wiggle.collision_ob = co  
-        b.wiggle.collision_normal = cn
+        if head:
+            b.wiggle.collision_ob_head = None
+        else:
+            b.wiggle.collision_ob = None
 
 def update_matrix(b,last=False):
     loc = Matrix.Translation(Vector((0,0,0)))
