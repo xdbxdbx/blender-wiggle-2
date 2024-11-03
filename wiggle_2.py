@@ -254,12 +254,12 @@ def collide_full_bone(b, dg):
             # Collision detection logic
             if (abs(n.dot(v.normalized())) > 0.01) or (v.length < b.wiggle_radius) or (co and (v.length < (b.wiggle_radius + b.wiggle_sticky))):
                 nv = v.normalized() if n.dot(v.normalized()) > 0 else -v.normalized()
-                pos = i + nv * b.wiggle_radius
+                pos = i + nv * (b.wiggle_radius * 0.5)
                 print(f"Step {i}: Collision at position {pos} with normal {cn} against {collider.name}")
 
                 if co:
                     collision_point = co.matrix_world @ cp
-                    pos = pos.lerp(collision_point, b.wiggle_friction)
+                    pos = pos.lerp(collision_point, b.wiggle_friction * 0.5)
                 collision_occurred = True
                 co = collider
                 cp = relative_matrix(cmw, Matrix.Translation(pos)).translation
