@@ -208,11 +208,11 @@ def collide_full_bone(b, dg):
     co_tail = b.wiggle.collision_ob_tail
     cn_tail = b.wiggle.collision_normal_tail
 
-    steps = 10
+    steps = bpy.context.scene.wiggle.full_bone_collision.steps
     collision_occurred = False
     collision_data = []
-    collision_threshold = 0.02  # Minimum movement to count as a collision
-    dot_threshold = 0.1  # Dot product sensitivity
+    collision_threshold = bpy.context.scene.wiggle.full_bone_collision.collision_threshold  # Minimum movement to count as a collision
+    dot_threshold = bpy.context.scene.wiggle.full_bone_collision.dot_threshold  # Dot product sensitivity
     previous_cp = None  # Track the last collision point to avoid duplicates
 
     colliders = []
@@ -274,8 +274,6 @@ def collide_full_bone(b, dg):
         b.wiggle.collision_point_tail = cp_head
         b.wiggle.collision_ob_tail = co_head
         b.wiggle.collision_normal_tail = cn_head
-
-    print("Collision Data:", collision_data)
 
 def update_matrix(b,last=False):
     loc = Matrix.Translation(Vector((0,0,0)))
@@ -361,7 +359,10 @@ def move(b,dg):
                 F += dir * fac * b.wiggle_wind_ob.field.strength * b.wiggle_wind / b.wiggle_mass
             b.wiggle.position += b.wiggle.velocity + F * dt2
             pin(b)
-            collide_full_bone(b, dg)  # Use updated function
+            if bpy.context.scene.wiggle.full_bone_collision.enable_fullbone_collision:
+                collide_full_bone(b, dg)
+            else:
+                collide(b, dg)
 
         if b.wiggle_head and not b.bone.use_connect:
             damp = max(min(1 - b.wiggle_damp_head * dt, 1), 0)
@@ -371,7 +372,11 @@ def move(b,dg):
                 dir = b.wiggle_wind_ob_head.matrix_world.to_quaternion().to_matrix().to_4x4() @ Vector((0, 0, 1))
                 F += dir * b.wiggle_wind_ob_head.field.strength * b.wiggle_wind_head / b.wiggle_mass_head
             b.wiggle.position_head += b.wiggle.velocity_head + F * dt2
-            collide_full_bone(b, dg)  # Use updated function for head
+            if bpy.context.scene.wiggle.full_bone_collision.enable_fullbone_collision:
+                collide_full_bone(b, dg)
+            else:
+                collide(b, dg, True)
+
         update_matrix(b)
 
 def constrain(b,i,dg):
@@ -520,9 +525,15 @@ def constrain(b,i,dg):
             update_matrix(p)
         if b.wiggle_tail:
             pin(b)
-            collide_full_bone(b, dg)  # Use updated function
+            if bpy.context.scene.wiggle.full_bone_collision.enable_fullbone_collision:
+                collide_full_bone(b, dg)
+            else:
+                collide(b, dg)
         if b.wiggle_head:
-            collide_full_bone(b, dg)  # Use updated function for head
+            if bpy.context.scene.wiggle.full_bone_collision.enable_fullbone_collision:
+                collide_full_bone(b, dg)
+            else:
+                collide(b, dg, True)
     update_matrix(b)
  
 @persistent
@@ -1022,9 +1033,10 @@ class WIGGLE_PT_Fullbone_Collision(bpy.types.Panel):
         fullbone = context.scene.wiggle.full_bone_collision
 
         layout.prop(fullbone, "enable_fullbone_collision")
-        layout.prop(fullbone, "steps")
-        layout.prop(fullbone, "collision_threshold")
-        layout.prop(fullbone, "dot_threshold")
+        if fullbone.enable_fullbone_collision:
+            layout.prop(fullbone, "steps")
+            layout.prop(fullbone, "collision_threshold")
+            layout.prop(fullbone, "dot_threshold")
 
 class WiggleBoneItem(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(override={'LIBRARY_OVERRIDABLE'})
