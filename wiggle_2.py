@@ -19,12 +19,13 @@
 # - Fixed bake error in newer Blender versions.
 # - Updated bl_info.
 # - Cleaned up script.
+# - Added new settings and algorithm for full bone collisions.
 
 bl_info = {
     "name": "Wiggle 2 (Fork)",
     "author": "Labhatorian",
     "original_author": "Steve Miller",
-    "version": (1, 0, 0),
+    "version": (2, 0, 0),
     "blender": (3, 00, 0),
     "location": "3D Viewport > Animation Panel",
     "description": "Simulate spring-like physics on Bone transforms",
@@ -179,7 +180,6 @@ def collide(b, dg, head=False):
             cn = nv
     if not col:
         co = None
-#        cp = cn = Vector((0,0,0))
     
     if head:
         b.wiggle.position_head = pos
@@ -374,7 +374,6 @@ def move(b,dg):
             collide_full_bone(b, dg)  # Use updated function for head
         update_matrix(b)
 
-       # if bpy.context.scene.wiggle_scene.enable_collision:
 def constrain(b,i,dg):
     dt = bpy.context.scene.wiggle.dt
     
@@ -497,7 +496,7 @@ def constrain(b,i,dg):
             target = mat.translation + (b.wiggle.position - mat.translation).normalized()*length_world(b)
             s = stretch(target, b.wiggle.position, b.wiggle_stretch)
             if p and b.wiggle_chain and p.wiggle_tail: #ASSUMES P IS DIRECT PARENT?
-                fac = get_fac(b.wiggle_mass, p.wiggle_mass) #if i else p.wiggle_stretch
+                fac = get_fac(b.wiggle_mass, p.wiggle_mass)
                 if get_pin(b): fac = 1 - b.wiggle_stretch
                 if i == 0: fac = p.wiggle_stretch
                 if (p == b.parent and b.bone.use_connect): #optimization with direct parent tail
@@ -782,6 +781,7 @@ class WiggleBake(bpy.types.Operator):
                 context.scene.frame_set(context.scene.frame_start)
             context.scene.wiggle.is_preroll = True
             preroll -= 1
+
         #bake
         if bpy.app.version[0] >= 4 and bpy.app.version[1] > 0:
             # Before calling bpy.ops.nla.bake(), clear any conflicting IDProperties
@@ -986,7 +986,6 @@ class WIGGLE_PT_Utilities(WigglePanel,bpy.types.Panel):
             col.operator('wiggle.copy')
             col.operator('wiggle.select')
         col.operator('wiggle.reset')
-        layout.prop(context.scene.wiggle, 'enable_collision')
         layout.prop(context.scene.wiggle, 'loop')
         layout.prop(context.scene.wiggle, 'iterations')
         
@@ -1009,7 +1008,24 @@ class WIGGLE_PT_Bake(WigglePanel,bpy.types.Panel):
         row.enabled = not context.scene.wiggle.bake_overwrite
         row.prop(context.scene.wiggle, 'bake_nla')
         layout.operator('wiggle.bake')
-        
+
+class WIGGLE_PT_Fullbone_Collision(bpy.types.Panel):
+    bl_label = "Full Bone Collision Settings"
+    bl_idname = "WIGGLE_PT_Fullbone_Collision"
+    bl_parent_id = "WIGGLE_PT_Utilities"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI' 
+    bl_options = {"DEFAULT_CLOSED"}
+
+    def draw(self, context):
+        layout = self.layout
+        fullbone = context.scene.wiggle.full_bone_collision
+
+        layout.prop(fullbone, "enable_fullbone_collision")
+        layout.prop(fullbone, "steps")
+        layout.prop(fullbone, "collision_threshold")
+        layout.prop(fullbone, "dot_threshold")
+
 class WiggleBoneItem(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(override={'LIBRARY_OVERRIDABLE'})
     
@@ -1047,7 +1063,29 @@ class WiggleBone(bpy.types.PropertyGroup):
     
 class WiggleObject(bpy.types.PropertyGroup):
     list: bpy.props.CollectionProperty(type=WiggleItem, override={'LIBRARY_OVERRIDABLE'})
-    
+ 
+class FullBoneCollisionSettings(bpy.types.PropertyGroup):
+    enable_fullbone_collision: bpy.props.BoolProperty(
+        name='Enable Full Bone Collision',
+        description='Enable collision detection for the entire wiggle bone in this scene',
+        default=False
+    )
+    steps: bpy.props.IntProperty(
+        name='Steps',
+        description='Number of interpolation steps for collision detection along the bone',
+        min=1, default=10, soft_max=64, max=100
+    )
+    collision_threshold: bpy.props.FloatProperty(
+        name='Collision Threshold',
+        description='Minimum movement distance to consider a collision',
+        min=0.001, default=0.02, precision=4
+    )
+    dot_threshold: bpy.props.FloatProperty(
+        name='Dot Threshold',
+        description='Sensitivity threshold for the dot product check during collisions',
+        min=0.01, max=1.0, default=0.1, precision=2
+    )
+   
 class WiggleScene(bpy.types.PropertyGroup):
     dt: bpy.props.FloatProperty()
     lastframe: bpy.props.IntProperty()
@@ -1060,11 +1098,7 @@ class WiggleScene(bpy.types.PropertyGroup):
     bake_nla: bpy.props.BoolProperty(name='Current Action to NLA', description='Move existing animation on the armature into an NLA strip', default = False) 
     is_rendering: bpy.props.BoolProperty(default=False)
     reset: bpy.props.BoolProperty(default=False)
-    enable_collision: bpy.props.BoolProperty(
-        name='Enable Collision',
-        description='Enable collision detection for wiggle bones in this scene',
-        default=False
-    )
+    full_bone_collision: bpy.props.PointerProperty(type=FullBoneCollisionSettings)
 
 def register():
     
@@ -1392,20 +1426,13 @@ def register():
         override={'LIBRARY_OVERRIDABLE'},
         update=lambda s, c: update_prop(s, c, 'wiggle_sticky_head')
     )
-
-    #Enable collision along the whole bone from head to tail
-    bpy.types.PoseBone.wiggle_enable_collision = bpy.props.BoolProperty(
-        name='Enable Collision',
-        description="Enable collision along the whole bone from head to tail",
-        default=False,
-        override={'LIBRARY_OVERRIDABLE'},
-        update=lambda s, c: update_prop(s, c, 'wiggle_enable_collision')
-    )
     
     #internal variables
+    
     bpy.utils.register_class(WiggleBoneItem)
     bpy.utils.register_class(WiggleItem)
     bpy.utils.register_class(WiggleBone)
+    bpy.utils.register_class(FullBoneCollisionSettings)
     bpy.types.PoseBone.wiggle = bpy.props.PointerProperty(type=WiggleBone, override={'LIBRARY_OVERRIDABLE'})
     bpy.utils.register_class(WiggleObject)
     bpy.types.Object.wiggle = bpy.props.PointerProperty(type=WiggleObject, override={'LIBRARY_OVERRIDABLE'})
@@ -1421,6 +1448,7 @@ def register():
     bpy.utils.register_class(WIGGLE_PT_Tail)
     bpy.utils.register_class(WIGGLE_PT_Utilities)
     bpy.utils.register_class(WIGGLE_PT_Bake)
+    bpy.utils.register_class(WIGGLE_PT_Fullbone_Collision)
     
     bpy.app.handlers.frame_change_pre.append(wiggle_pre)
     bpy.app.handlers.frame_change_post.append(wiggle_post)
@@ -1433,6 +1461,7 @@ def unregister():
     bpy.utils.unregister_class(WiggleBoneItem)
     bpy.utils.unregister_class(WiggleItem)
     bpy.utils.unregister_class(WiggleBone)
+    bpy.utils.unregister_class(FullBoneCollisionSettings)
     bpy.utils.unregister_class(WiggleObject)
     bpy.utils.unregister_class(WiggleScene)
     bpy.utils.unregister_class(WiggleReset)
@@ -1444,6 +1473,7 @@ def unregister():
     bpy.utils.unregister_class(WIGGLE_PT_Tail)
     bpy.utils.unregister_class(WIGGLE_PT_Utilities)
     bpy.utils.unregister_class(WIGGLE_PT_Bake)
+    bpy.utils.unregister_class(WIGGLE_PT_Fullbone_collision)
     
     bpy.app.handlers.frame_change_pre.remove(wiggle_pre)
     bpy.app.handlers.frame_change_post.remove(wiggle_post)
