@@ -4,7 +4,7 @@ Wiggle 2 is a complete rewrite of the original [wiggle bones add-on](https://git
 
 ## Fork Notice
 
-This project is a fork of the original [blender-wiggle-2 by Steve Miller](https://github.com/shteeve3d/blender-wiggle). Modifications have been made to fix compatibility issues with newer Blender versions, new features for bone collision, along with code cleanup and an updated README. Although I have minimal experience in Blender, I was asked by a friend to fix and enhance this add-on.
+This project is a fork of the original [blender-wiggle-2 by Steve Miller](https://github.com/shteeve3d/blender-wiggle-2). Modifications have been made to fix compatibility issues with newer Blender versions, new features for bone collision, along with code cleanup and an updated README. Although I have minimal experience in Blender, I was asked by a friend to fix this add-on.
 
 For a detailed list of changes, refer to the notice in [`wiggle_2.py`](./wiggle_2.py).
 
