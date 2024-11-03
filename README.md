@@ -4,7 +4,7 @@ Wiggle 2 is a complete rewrite of the original [wiggle bones add-on](https://git
 
 ## Fork Notice
 
-This project is a fork of the original [blender-wiggle-2 by Steve Miller](https://github.com/shteeve3d/blender-wiggle). Modifications have been made to fix compatibility issues with newer Blender versions, along with code cleanup and an updated README. Although I have minimal experience in Blender, I was asked by a friend to fix and enhance this add-on.
+This project is a fork of the original [blender-wiggle-2 by Steve Miller](https://github.com/shteeve3d/blender-wiggle). Modifications have been made to fix compatibility issues with newer Blender versions, new features for bone collision, along with code cleanup and an updated README. Although I have minimal experience in Blender, I was asked by a friend to fix and enhance this add-on.
 
 For a detailed list of changes, refer to the notice in [`wiggle_2.py`](./wiggle_2.py).
 
@@ -57,6 +57,11 @@ For a detailed list of changes, refer to the notice in [`wiggle_2.py`](./wiggle_
    - Select a collision object or collection to enable interactions, providing additional tuning options for collision behavior. \
    ![Configure Collision](./images/configure_collision.png?raw=true "Configure Collision")
    - all bone collisions option
+   - **Full Bone Collision Option**: \
+   ![Full Bone Collision Settings](./images/fullbone_collision.png?raw=true "Configure Full Bone Collision")
+     - You can enable collision detection for the entire length of the bone by checking the **Enable Full Bone Collision** option in the _Global Wiggle Utilities_. This allows for more accurate collision interactions along the entire bone rather than just at the head or tail. 
+     - Adjust the **Steps** setting to define how many interpolation points are used for the collision detection along the bone.
+     - Set the **Collision Threshold** to determine the minimum movement distance considered for a collision, and the **Dot Threshold** for sensitivity during the collision check.
 
 8. **Utilize Global Utilities**
    - The global utilities section offers functions like resetting physics, selecting all wiggling bones, and copying settings between bones. 
