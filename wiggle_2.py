@@ -208,12 +208,13 @@ def collide_full_bone(b, dg):
     co_tail = b.wiggle.collision_ob_tail
     cn_tail = b.wiggle.collision_normal_tail
 
-    # Interpolation factor
     steps = 10
     collision_occurred = False
-    collision_data = []  # To track collision info for all steps
+    collision_data = []
+    collision_threshold = 0.02  # Minimum movement to count as a collision
+    dot_threshold = 0.1  # Dot product sensitivity
+    previous_cp = None  # Track the last collision point to avoid duplicates
 
-    # Set up colliders list based on the collider type
     colliders = []
     if b.wiggle_collider_type == 'Object' and b.wiggle_collider:
         if b.wiggle_collider.name in bpy.context.scene.objects:
@@ -226,67 +227,54 @@ def collide_full_bone(b, dg):
         t = i / steps
         pos = pos_head.lerp(pos_tail, t)
         vel = vel_head.lerp(vel_tail, t)
-        cp = cp_head.lerp(cp_tail, t)
-        co = co_head if i == 0 else co_tail
-        cn = cn_head.lerp(cn_tail, t)
 
-        # Check for collision at this interpolated position
         for collider in colliders:
-           
             cmw = collider.matrix_world
             p = collider.closest_point_on_mesh(cmw.inverted() @ pos, depsgraph=dg)
             n = (cmw.to_quaternion().to_matrix().to_4x4() @ p[2]).normalized()
             i = cmw @ p[1]
             v = i - pos
 
-            # Diagnostic prints
-            print(f"Step {i}: Collider {collider.name}")
-            print(f"Position: {pos}, Closest Point: {i}, Vector v: {v}, Normal n: {n}")
-            print(f"Dot Product: {n.dot(v.normalized())}, Vector Length: {v.length}")
-            
-            # Manually setting each condition as variables for clarity
-            dot_check = abs(n.dot(v.normalized())) > 0.01
-            radius_check = v.length < b.wiggle_radius
-            sticky_check = co and (v.length < (b.wiggle_radius + b.wiggle_sticky))
-            
-            print(f"Dot Check: {dot_check}, Radius Check: {radius_check}, Sticky Check: {sticky_check}")
+            if v.length < collision_threshold:
+                continue  # Skip if the movement is too small
 
-            # Collision detection logic
-            if (abs(n.dot(v.normalized())) > 0.01) or (v.length < b.wiggle_radius) or (co and (v.length < (b.wiggle_radius + b.wiggle_sticky))):
+            dot_check = abs(n.dot(v.normalized())) > dot_threshold
+            radius_check = v.length < b.wiggle_radius
+
+            # Skip duplicate points by checking proximity to last collision point
+            if previous_cp and (previous_cp - i).length < collision_threshold:
+                continue
+
+            if dot_check or radius_check:
                 nv = v.normalized() if n.dot(v.normalized()) > 0 else -v.normalized()
                 pos = i + nv * (b.wiggle_radius * 0.5)
-                print(f"Step {i}: Collision at position {pos} with normal {cn} against {collider.name}")
-
-                if co:
-                    collision_point = co.matrix_world @ cp
+                if co_head:
+                    collision_point = co_head.matrix_world @ cp_head
                     pos = pos.lerp(collision_point, b.wiggle_friction * 0.5)
+
                 collision_occurred = True
-                co = collider
-                cp = relative_matrix(cmw, Matrix.Translation(pos)).translation
-                cn = nv
+                co_head = collider
+                cp_head = relative_matrix(cmw, Matrix.Translation(pos)).translation
+                cn_head = nv
                 collision_data.append({
                     'position': pos,
                     'collider': collider,
-                    'normal': cn,
-                    'point': cp
-                })  # Store collision data
-                # No break here so it continues checking every point along the bone
+                    'normal': cn_head,
+                    'point': cp_head
+                })
 
-    # If any collisions occurred, update the head and tail positions along the bone
+                previous_cp = cp_head  # Update last collision point
+
     if collision_occurred:
-        # Calculate a position adjustment that considers all collisions
-        final_position = pos_head.lerp(pos, 0.5)
-        b.wiggle.position_head = final_position
-        b.wiggle.collision_point_head = cp
-        b.wiggle.collision_ob_head = co
-        b.wiggle.collision_normal_head = cn
-        
+        b.wiggle.position_head = pos_head.lerp(pos, 0.5)
+        b.wiggle.collision_point_head = cp_head
+        b.wiggle.collision_ob_head = co_head
+        b.wiggle.collision_normal_head = cn_head
         b.wiggle.position_tail = pos_tail.lerp(pos, 0.5)
-        b.wiggle.collision_point_tail = cp
-        b.wiggle.collision_ob_tail = co
-        b.wiggle.collision_normal_tail = cn
+        b.wiggle.collision_point_tail = cp_head
+        b.wiggle.collision_ob_tail = co_head
+        b.wiggle.collision_normal_tail = cn_head
 
-    # Optional: log collision_data for debugging
     print("Collision Data:", collision_data)
 
 def update_matrix(b,last=False):
